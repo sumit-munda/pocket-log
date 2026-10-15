@@ -8,6 +8,7 @@
     "dev:web": "npm run dev --workspace=@pocket-log/web",
     "dev:api": "npm run dev --workspace=@pocket-log/api",
     "build": "npm run build --workspaces",
+    "build:web": "npm run build --workspace=@pocket-log/web",
     "test": "npm run test --workspaces"
   },
   "workspaces": [
