@@ -469,13 +469,20 @@
 .entry-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  align-items: center;
+  gap: 8px;
   color: #929b90;
-  font-size: 9px;
+  font-size: 10px;
+  line-height: 1.5;
 }
 
 .entry-meta span {
   color: #6c876e;
+  font-weight: 600;
+}
+
+.entry-meta time {
+  color: #929b90;
 }
 
 .entry-content h3,
@@ -487,9 +494,10 @@
 
 .entry-content p {
   margin: 0;
-  color: #8b948a;
-  font-size: 10px;
+  color: #758075;
+  font-size: 12px;
   line-height: 1.8;
+  overflow-wrap: anywhere;
 }
 
 .entry-arrow {

@@ -21,8 +21,33 @@ const activities = [
   },
 ];
 
+function isToday(dateString: string): boolean {
+  const date = new Date(dateString);
+  const today = new Date();
+
+  return (
+    date.getFullYear() === today.getFullYear() &&
+    date.getMonth() === today.getMonth() &&
+    date.getDate() === today.getDate()
+  );
+}
+
+function getJournalPreview(content: string, maxLength = 180): string {
+  const normalizedContent = content.trim();
+
+  if (normalizedContent.length <= maxLength) {
+    return normalizedContent;
+  }
+
+  return `${normalizedContent.slice(0, maxLength).trimEnd()}...`;
+}
+
 const App = () => {
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
+
+  const todayEntryCount = journalEntries.filter((entry) =>
+    isToday(entry.createdAt),
+  ).length;
 
   const [isLoadingEntries, setIsLoadingEntries] = useState(true);
 
@@ -73,6 +98,14 @@ const App = () => {
     month: "long",
     day: "numeric",
   }).format(new Date());
+
+  function handleNewJournalEntry() {
+    setEditingEntryId(null);
+    setTitle("");
+    setContent("");
+    setSaveError(null);
+    setIsEditorOpen(true);
+  }
 
   function handleEditJournalEntry(entry: JournalEntry) {
     setEditingEntryId(entry.id);
@@ -257,10 +290,7 @@ const App = () => {
             <button
               type="button"
               className="action-card journal-action"
-              onClick={() => {
-                setIsEditorOpen((open) => !open);
-                setSaveError(null);
-              }}
+              onClick={handleNewJournalEntry}
               aria-expanded={isEditorOpen}
               aria-controls="journal-editor"
             >
@@ -291,8 +321,16 @@ const App = () => {
                 <span>Journal entries</span>
                 <span className="stat-icon">✎</span>
               </div>
-              <strong className="stat-number">02</strong>
-              <span className="stat-caption">Moments captured today</span>
+
+              <strong className="stat-number">
+                {isLoadingEntries ? "-" : todayEntryCount}
+              </strong>
+
+              <span className="stat-caption">
+                {todayEntryCount === 1
+                  ? "Moment captured today"
+                  : "Moments captured today"}
+              </span>
             </article>
 
             <article className="stat-card">
@@ -426,16 +464,29 @@ const App = () => {
                       <div className="entry-content">
                         <div className="entry-meta">
                           <span>Journal</span>
-                          <span>
+
+                          <time dateTime={entry.createdAt}>
+                            {new Intl.DateTimeFormat("en", {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                            }).format(new Date(entry.createdAt))}
+                          </time>
+
+                          <time dateTime={entry.createdAt}>
                             {new Intl.DateTimeFormat("en", {
                               hour: "numeric",
                               minute: "2-digit",
                             }).format(new Date(entry.createdAt))}
-                          </span>
+                          </time>
                         </div>
 
                         <h3>{entry.title}</h3>
-                        <p>{entry.content || "No additional details"}</p>
+                        <p>
+                          {entry.content.trim()
+                            ? getJournalPreview(entry.content)
+                            : "No additional details"}
+                        </p>
                       </div>
 
                       <button
