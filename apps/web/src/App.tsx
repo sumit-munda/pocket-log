@@ -3,7 +3,9 @@ import "./App.css";
 import type { JournalEntry } from "@pocket-log/shared";
 import {
   createJournalEntry,
+  deleteJournalEntry,
   getJournalEntries,
+  updateJournalEntry,
 } from "./lib/storage/journal-storage";
 
 const activities = [
@@ -27,10 +29,16 @@ const App = () => {
   const [journalError, setJournalError] = useState<string | null>(null);
 
   const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
+
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
+
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     let isActive = true;
@@ -66,7 +74,40 @@ const App = () => {
     day: "numeric",
   }).format(new Date());
 
-  async function handleCreateJournalEntry(
+  function handleEditJournalEntry(entry: JournalEntry) {
+    setEditingEntryId(entry.id);
+    setTitle(entry.title);
+    setContent(entry.content);
+    setSaveError(null);
+    setIsEditorOpen(true);
+  }
+
+  async function handleDeleteJournalEntry(entry: JournalEntry) {
+    const confirmed = window.confirm(
+      `Are you sure you want to delete "${entry.title}"? This action cannot be undone.`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingEntryId(entry.id);
+    setDeleteError(null);
+
+    try {
+      await deleteJournalEntry(entry.id);
+
+      setJournalEntries((entries) =>
+        entries.filter((existingEntry) => existingEntry.id !== entry.id),
+      );
+    } catch {
+      setDeleteError("Unable to delete your journal entry. Please try again.");
+    } finally {
+      setDeletingEntryId(null);
+    }
+  }
+
+  async function handleSaveJournalEntry(
     event: React.FormEvent<HTMLFormElement>,
   ) {
     event.preventDefault();
@@ -83,17 +124,43 @@ const App = () => {
     setSaveError(null);
 
     try {
-      const newEntry = await createJournalEntry({
-        title: trimmedTitle,
-        content: trimmedContent,
-      });
+      if (editingEntryId) {
+        await updateJournalEntry(editingEntryId, {
+          title: trimmedTitle,
+          content: trimmedContent,
+        });
 
-      setJournalEntries((entries) => [newEntry, ...entries]);
+        setJournalEntries((entries) =>
+          entries.map((entry) =>
+            entry.id === editingEntryId
+              ? {
+                  ...entry,
+                  title: trimmedTitle,
+                  content: trimmedContent,
+                  updatedAt: new Date().toISOString(),
+                }
+              : entry,
+          ),
+        );
+      } else {
+        const newEntry = await createJournalEntry({
+          title: trimmedTitle,
+          content: trimmedContent,
+        });
+
+        setJournalEntries((entries) => [newEntry, ...entries]);
+      }
+
       setTitle("");
       setContent("");
+      setEditingEntryId(null);
       setIsEditorOpen(false);
     } catch {
-      setSaveError("Unable to save your journal entry. Please try again.");
+      setSaveError(
+        editingEntryId
+          ? "Unable to update your journal entry. Please try again."
+          : "Unable to save your journal entry. Please try again.",
+      );
     } finally {
       setIsSaving(false);
     }
@@ -256,11 +323,15 @@ const App = () => {
               <div className="section-heading">
                 <div>
                   <p className="eyebrow">YOUR THOUGHTS</p>
-                  <h2 id="journal-editor-title">Write a journal entry</h2>
+                  <h2 id="journal-editor-title">
+                    {editingEntryId
+                      ? "Edit journal entry"
+                      : "Write a journal entry"}
+                  </h2>
                 </div>
               </div>
 
-              <form onSubmit={handleCreateJournalEntry}>
+              <form onSubmit={handleSaveJournalEntry}>
                 <div className="journal-form-field">
                   <label htmlFor="journal-title">Title</label>
 
@@ -298,6 +369,9 @@ const App = () => {
                     type="button"
                     onClick={() => {
                       setIsEditorOpen(false);
+                      setEditingEntryId(null);
+                      setTitle("");
+                      setContent("");
                       setSaveError(null);
                     }}
                     disabled={isSaving}
@@ -306,7 +380,13 @@ const App = () => {
                   </button>
 
                   <button type="submit" disabled={isSaving}>
-                    {isSaving ? "Saving..." : "Save entry"}
+                    {isSaving
+                      ? editingEntryId
+                        ? "Updating..."
+                        : "Saving..."
+                      : editingEntryId
+                        ? "Update entry"
+                        : "Save entry"}
                   </button>
                 </div>
               </form>
@@ -327,6 +407,8 @@ const App = () => {
               </div>
 
               <div className="entry-list">
+                {deleteError && <p role="alert">{deleteError}</p>}
+
                 {isLoadingEntries ? (
                   <p role="status">Loading your journal entries...</p>
                 ) : journalError ? (
@@ -338,7 +420,7 @@ const App = () => {
                   </p>
                 ) : (
                   journalEntries.map((entry) => (
-                    <article className="entry-item" key={entry.title}>
+                    <article className="entry-item" key={entry.id}>
                       <div className="entry-marker" />
 
                       <div className="entry-content">
@@ -356,7 +438,26 @@ const App = () => {
                         <p>{entry.content || "No additional details"}</p>
                       </div>
 
-                      <span className="entry-arrow">↗</span>
+                      <button
+                        type="button"
+                        className="entry-edit-button"
+                        onClick={() => handleEditJournalEntry(entry)}
+                        aria-label={`Edit journal entry: ${entry.title}`}
+                      >
+                        Edit
+                      </button>
+
+                      <button
+                        type="button"
+                        className="entry-delete-button"
+                        onClick={() => void handleDeleteJournalEntry(entry)}
+                        disabled={deletingEntryId === entry.id}
+                        aria-label={`Delete journal entry: ${entry.title}`}
+                      >
+                        {deletingEntryId === entry.id
+                          ? "Deleting..."
+                          : "Delete"}
+                      </button>
                     </article>
                   ))
                 )}
